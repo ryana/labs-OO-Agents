@@ -1,0 +1,36 @@
+{
+  "variant": "model-aware",
+  "mode": "prompt-only",
+  "model": "openai/openai/gpt-5.6-sol",
+  "worker_model": "deepseek-v4-flash-0731-nvfp4",
+  "evaluation": {
+    "response": "PYTHONPATH=. pytest -q",
+    "success": true,
+    "result": {
+      "solution_description": "Implemented complete per-key stale-while-revalidate semantics in `swr_cache`: fresh/stale/expired TTL boundaries, coalesced background refreshes and blocking loads, concurrent work across keys, contained refresh failures, immutable statistics with the required accounting, generation-based invalidation protection, cancellation-safe shared tasks, and point-in-time waiting for active work. Added nine deterministic async tests covering cache boundaries, concurrency, failure behavior, statistics, refresh waiting, and invalidation races.",
+      "evidence": "`PYTHONPATH=. pytest -q` collected 9 tests and reported `9 passed in 0.09s`. A second validation with `PYTHONPATH=. python -W error -m unittest discover -s tests` ran all 9 tests and reported `OK`; `python -m compileall -q swr_cache tests` also exited successfully.",
+      "command_to_verify": "PYTHONPATH=. pytest -q"
+    }
+  },
+  "elapsed_seconds": 202.724,
+  "plan": null,
+  "orchestrator_usage": {
+    "calls": 9,
+    "prompt_tokens": 128849,
+    "completion_tokens": 7695,
+    "total_tokens": 136544
+  },
+  "worker_usage": {
+    "calls": 1,
+    "prompt_tokens": 906,
+    "completion_tokens": 956,
+    "total_tokens": 1862
+  },
+  "delegations": [
+    {
+      "task": "Critique this concurrency design against the supplied SWR requirements. Identify subtle race/cancellation/statistics edge cases; do not propose repository edits.",
+      "context": "Existing cache has only _entries and counters; get directly loads every non-fresh entry. Proposed design: one asyncio.Task per current key plus a set of all active tasks; per-key generation incremented by invalidate. Each load captures generation and only stores when unchanged. invalidate removes current task mapping (but does not cancel it), allowing the next get to start a new load. Fresh/stale boundaries use age < fresh and age < fresh+stale. Stale starts exactly one task and returns old value; expired/missing increments misses per caller and joins current task. Done callback conditionally removes mapping, consumes task.exception, increments refresh_failures only for tasks originally started as stale refresh. wait_for_refreshes snapshots all active tasks and gather(return_exceptions=True).",
+      "response": "The proposed design is mostly sound but has several subtle issues:\n\n1. **Race between invalidate and done callback**: The done callback conditionally removes the mapping based on identity, but if invalidate has already removed the mapping and a new task is started for the same key, the old task's callback might remove the *new* mapping (if identity check is incorrect). Use explicit token/ID checks, not just key-mapping membership.\n\n2. **Generation check race**: The check 'only store when generation unchanged' must happen atomically with the store. Between checking generation and writing, an invalidate could increment generation, causing a stale write. Use an async lock or compare-and-set inside the same critical section.\n\n3. **Cancellation handling**: You don't cancel invalidated tasks, leaving them to run and possibly waste resources. Un-cancelled tasks can also hold references, preventing GC. Ensure the task's cleanup is always performed (try/finally) and that exceptions are not silently swallowed.\n\n4. **Statistics edge cases**: \n   - **Miss counts**: 'expired/missing increments misses per caller' \u2014 if multiple concurrent callers join the same task, each increments misses. That may be intentional, but 'per caller' can double-count if callers are retried. Decide if miss should count per logical request or per actual cache miss (once per task).\n   - **Refresh failures**: Only increments for tasks started as stale refresh. But if a stale task fails, you don't increment misses \u2014 only refresh_failures. Ensure you don't also increment misses, or you'd double-count. But you may want to increment misses on failure so callers that get old data don't see a false 'fresh'. Clarify semantics.\n   - **wait_for_refreshes snapshot**: Snapshotting all active tasks means tasks started during the wait are not joined \u2014 that's fine for a point-in-time snapshot, but if new invalidate/load tasks start during the wait, they won't be waited on. Callers may expect all refreshes to settle.\n\n5. **Stale start of exactly one task**: The check 'stale starts exactly one task' must be atomic \u2014 if two callers both see stale at the same time, both could start a task. Use the active-tasks set insertion as an atomic guard (e.g., if key in active_tasks, don't start new). Ensure the set mutation is atomic or protected.\n\n6. **Fresh/stale boundary off-by-one**: age < fresh and age < fresh+stale. If age == fresh, it's stale (correct). If age == fresh+stale, expired (correct). But beware of clock skew or timer resolution; with high-resolution monotonic clocks, boundaries like 'age < fresh' are fine, but if using wall clock, non-monotonic changes can cause spurious freshness. Use a monotonic clock.\n\n7. **Miss counter in expired path**: If expired, you increment misses then join the task. If the task is a stale refresh, you might double-count with the stale path's refresh_failures. Ensure clear separation.\n\n8. **Exception consumption in done callback**: task.exception() may raise CancelledError; guard it. Also, if the task is cancelled, does that count as refresh_failure? Decide.\n\n9. **Potential missed refresh after invalidate**: Invalidate removes mapping but doesn't cancel; the next get starts a new load. But if no get happens, the old task still runs and may store with old generation \u2014 but generation increased, so store is skipped. That's correct, but the old task's result is wasted. Fine.\n\n10. **wait_for_refreshes with cancelled tasks**: gather(return_exceptions=True) won't cancel tasks, but if task is already cancelled, it returns CancelledError \u2014 ensure you don't count those as failures.\n\n**Recommendation**: Use generation tokens for identity, protect store with a lock, use monotonic clocks, make task-start guard atomic, and clearly define miss vs. refresh_failure accounting to avoid double counting. Consider cancelling invalidated tasks if they are no longer needed (or mark them to skip store).\n\n**Uncertainty**: The exact semantics of 'per caller' misses vs. per-task misses is unclear; the integrating engineer must decide based on SLI definitions. The stale path's 'returns old value' combined with refresh_failures may need a separate 'stale served' counter."
+    }
+  ]
+}
