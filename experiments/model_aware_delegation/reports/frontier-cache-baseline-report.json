@@ -1,0 +1,25 @@
+{
+  "variant": "baseline",
+  "mode": null,
+  "model": "openai/openai/gpt-5.6-sol",
+  "worker_model": null,
+  "evaluation": {
+    "response": "PYTHONPATH=. python -m pytest -q tests/test_cache.py && python -m compileall -q swr_cache tests && git diff --check",
+    "success": true,
+    "result": {
+      "solution_description": "Implemented full asynchronous stale-while-revalidate behavior with per-key task coalescing, exact fresh/stale/expired TTL boundaries, immutable statistics, contained background failures, snapshot-based waiting, and generation fencing so invalidated in-flight work cannot repopulate the cache. Added deterministic tests for concurrency, failures, invalidation races, TTL boundaries, and statistics.",
+      "evidence": "`PYTHONPATH=. python -m pytest -q tests/test_cache.py` collected 11 tests and reported `11 passed in 0.09s`. `PYTHONPATH=. python -m unittest discover -s tests -v` also ran all 11 tests and reported `OK`; compileall and `git diff --check` completed successfully.",
+      "command_to_verify": "PYTHONPATH=. python -m pytest -q tests/test_cache.py && python -m compileall -q swr_cache tests && git diff --check"
+    }
+  },
+  "elapsed_seconds": 134.905,
+  "plan": null,
+  "orchestrator_usage": {
+    "calls": 9,
+    "prompt_tokens": 100855,
+    "completion_tokens": 6763,
+    "total_tokens": 107618
+  },
+  "worker_usage": null,
+  "delegations": []
+}

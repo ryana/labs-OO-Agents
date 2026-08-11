@@ -1,0 +1,24 @@
+{
+  "variant": "baseline",
+  "mode": null,
+  "model": "openai/openai/gpt-5.6-sol",
+  "worker_model": null,
+  "evaluation": {
+    "response": "python -m unittest discover -s tests -v && python -m py_compile retry_after.py tests/test_retry_after.py",
+    "success": true,
+    "result": {
+      "solution_description": "Implemented complete Retry-After parsing using only Python\u2019s standard library. Non-negative ASCII integer delta-seconds remain supported, while negative/fractional values are rejected. Strict IMF-fixdate values are parsed and canonically validated, future dates return their delay, past dates clamp to 0.0, and naive `now` values raise ValueError. Added focused tests covering all required behavior and malformed dates.",
+      "evidence": "`python -m unittest discover -s tests -v && python -m py_compile retry_after.py tests/test_retry_after.py` exited 0. All 7 tests passed, including future/past IMF-fixdates, invalid delta-seconds, malformed dates, and naive `now`; both implementation and tests also compiled successfully.",
+      "command_to_verify": "python -m unittest discover -s tests -v && python -m py_compile retry_after.py tests/test_retry_after.py"
+    }
+  },
+  "plan": null,
+  "orchestrator_usage": {
+    "calls": 6,
+    "prompt_tokens": 46969,
+    "completion_tokens": 3450,
+    "total_tokens": 50419
+  },
+  "worker_usage": null,
+  "delegations": []
+}
